@@ -1,0 +1,5 @@
+psutil
+boto3
+Flask
+python-dotenv
+pytest

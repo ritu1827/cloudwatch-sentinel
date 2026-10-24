@@ -40,25 +40,27 @@ def collect_metrics():
 
 
 def evaluate_metrics(metrics):
-    """Evaluate metrics against configured thresholds."""
+    """Evaluate CPU, RAM, and disk metrics against configured thresholds."""
     alerts = []
 
-    if metrics["cpu_percent"] >= settings.cpu_threshold:
-        alerts.append({
-            "metric": "cpu_percent",
-            "value": metrics["cpu_percent"],
-            "threshold": settings.cpu_threshold,
-        })
+    thresholds = {
+        "cpu_percent": settings.cpu_threshold,
+        "memory_percent": settings.ram_threshold,
+        "disk_percent": settings.disk_threshold,
+    }
 
-    if metrics["memory_percent"] >= settings.ram_threshold:
-        alerts.append({
-            "metric": "memory_percent",
-            "value": metrics["memory_percent"],
-            "threshold": settings.ram_threshold,
-        })
+    for metric_name, threshold in thresholds.items():
+        value = metrics.get(metric_name)
+
+        if value is not None and value >= threshold:
+            alerts.append({
+                "metric": metric_name,
+                "value": value,
+                "threshold": threshold,
+                "severity": "HIGH" if value >= 95 else "WARNING",
+            })
 
     return alerts
-
 
 def run_once():
     metrics = collect_metrics()

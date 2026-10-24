@@ -11,6 +11,7 @@ class Settings:
     app_env: str = os.getenv("APP_ENV", "development")
     cpu_threshold: float = float(os.getenv("CPU_THRESHOLD", "80"))
     ram_threshold: float = float(os.getenv("RAM_THRESHOLD", "80"))
+    disk_threshold: float = float(os.getenv("DISK_THRESHOLD", "85"))
     check_interval: int = int(os.getenv("CHECK_INTERVAL", "5"))
     aws_region: str = os.getenv("AWS_REGION", "ap-south-1")
 
@@ -24,6 +25,9 @@ def validate_settings():
 
     if not 0 <= settings.ram_threshold <= 100:
         raise ValueError("RAM_THRESHOLD must be between 0 and 100.")
+
+    if not 0 <= settings.disk_threshold <= 100:
+        raise ValueError("DISK_THRESHOLD must be between 0 and 100.")
 
     if settings.check_interval < 1:
         raise ValueError("CHECK_INTERVAL must be at least 1 second.")

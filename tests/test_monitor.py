@@ -1,3 +1,4 @@
+
 from monitor import evaluate_metrics
 from config import settings
 
@@ -46,5 +47,22 @@ def test_high_memory_generates_alert():
 
     assert any(
         alert["metric"] == "memory_percent"
+        for alert in alerts
+    )
+
+
+def test_high_disk_generates_alert():
+    metrics = {
+        "cpu_percent": 20.0,
+        "memory_percent": 30.0,
+        "disk_percent": settings.disk_threshold,
+        "timestamp": "2026-10-22T10:00:00+00:00",
+        "source": "test",
+    }
+
+    alerts = evaluate_metrics(metrics)
+
+    assert any(
+        alert["metric"] == "disk_percent"
         for alert in alerts
     )

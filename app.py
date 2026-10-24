@@ -1,6 +1,5 @@
-from flask import Flask, jsonify, render_template_string
-from datetime import datetime, timezone
 
+from flask import Flask, jsonify, render_template_string
 from config import settings, validate_settings
 from monitor import collect_metrics, evaluate_metrics
 
@@ -10,108 +9,105 @@ DASHBOARD_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CloudWatch Sentinel | Monitoring</title>
-    <style>
-        * { box-sizing: border-box; }
-
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #0b1120;
-            color: #e5e7eb;
-        }
-
-        header {
-            padding: 24px 7%;
-            background: #111827;
-            border-bottom: 1px solid #263247;
-        }
-
-        header h1 { margin: 0 0 8px; font-size: 25px; }
-        header p { margin: 0; color: #9ca3af; }
-
-        main { max-width: 1100px; margin: 35px auto; padding: 0 20px; }
-
-        .status {
-            padding: 16px;
-            border-radius: 10px;
-            margin-bottom: 22px;
-            background: #172554;
-            border: 1px solid #1d4ed8;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 18px;
-        }
-
-        .card {
-            background: #111827;
-            border: 1px solid #263247;
-            border-radius: 12px;
-            padding: 22px;
-        }
-
-        .label { color: #9ca3af; font-size: 14px; }
-        .value { font-size: 32px; font-weight: bold; margin: 14px 0; }
-        .bar { height: 8px; background: #263247; border-radius: 10px; overflow: hidden; }
-        .fill { height: 100%; background: #38bdf8; width: 0; transition: width .3s; }
-        .healthy { color: #4ade80; }
-        .alert { color: #f87171; }
-        .muted { color: #9ca3af; font-size: 13px; }
-        button {
-            padding: 11px 16px;
-            margin-top: 20px;
-            background: #2563eb;
-            color: white;
-            border: 0;
-            border-radius: 7px;
-            cursor: pointer;
-        }
-        footer { color: #9ca3af; font-size: 12px; margin-top: 25px; }
-
-        @media (max-width: 600px) {
-            header { padding: 20px; }
-            .value { font-size: 28px; }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CloudWatch Sentinel Pro</title>
+<style>
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #0b1120;
+    color: #e5e7eb;
+}
+header {
+    padding: 24px 7%;
+    background: #111827;
+    border-bottom: 1px solid #263247;
+}
+header h1 { margin: 0 0 8px; }
+header p, .muted { color: #9ca3af; }
+main { max-width: 1150px; margin: 32px auto; padding: 0 20px; }
+.status, .card {
+    background: #111827;
+    border: 1px solid #263247;
+    border-radius: 12px;
+    padding: 22px;
+}
+.status { margin-bottom: 20px; }
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 18px;
+}
+.label { color: #9ca3af; font-size: 14px; }
+.value { font-size: 32px; font-weight: bold; margin: 14px 0; }
+.bar {
+    height: 8px;
+    background: #263247;
+    border-radius: 10px;
+    overflow: hidden;
+}
+.fill {
+    height: 100%;
+    width: 0;
+    background: #38bdf8;
+    transition: width .3s;
+}
+.healthy { color: #4ade80; }
+.alert { color: #f87171; }
+.muted { font-size: 13px; }
+button {
+    padding: 11px 16px;
+    margin-top: 20px;
+    background: #2563eb;
+    color: white;
+    border: 0;
+    border-radius: 7px;
+    cursor: pointer;
+}
+button:disabled { opacity: .6; cursor: wait; }
+#alert-list { line-height: 1.8; }
+footer { margin-top: 25px; color: #9ca3af; font-size: 12px; }
+@media (max-width: 600px) {
+    header { padding: 20px; }
+    .value { font-size: 28px; }
+}
+</style>
 </head>
 <body>
 <header>
-    <h1>CloudWatch Sentinel</h1>
-    <p>Cloud Resource Monitoring & Alert Dashboard</p>
+    <h1>CloudWatch Sentinel Pro</h1>
+    <p>System Health · Resource Monitoring · Threshold Alerts</p>
 </header>
 
 <main>
-    <div class="status">
+    <section class="status">
         <strong>System Status: </strong>
         <span id="status">Loading...</span>
-        <div class="muted" id="timestamp"></div>
-    </div>
+        <div class="muted" id="timestamp">Collecting metrics...</div>
+    </section>
 
-    <div class="grid">
+    <section class="grid">
         <div class="card">
             <div class="label">CPU Utilization</div>
             <div class="value" id="cpu">--%</div>
             <div class="bar"><div class="fill" id="cpu-bar"></div></div>
-            <p class="muted">Alert threshold: <span id="cpu-threshold"></span>%</p>
+            <p class="muted">Threshold: <span id="cpu-threshold">--</span>%</p>
         </div>
 
         <div class="card">
             <div class="label">Memory Utilization</div>
             <div class="value" id="ram">--%</div>
             <div class="bar"><div class="fill" id="ram-bar"></div></div>
-            <p class="muted">Alert threshold: <span id="ram-threshold"></span>%</p>
+            <p class="muted">Threshold: <span id="ram-threshold">--</span>%</p>
         </div>
 
         <div class="card">
             <div class="label">Disk Utilization</div>
             <div class="value" id="disk">--%</div>
             <div class="bar"><div class="fill" id="disk-bar"></div></div>
-            <p class="muted">Local machine disk usage</p>
+            <p class="muted">Threshold: <span id="disk-threshold">--</span>%</p>
         </div>
 
         <div class="card">
@@ -119,35 +115,54 @@ DASHBOARD_HTML = """
             <div class="value" id="alerts">--</div>
             <p class="muted" id="alert-details">Checking metrics...</p>
         </div>
-    </div>
+    </section>
 
-    <button onclick="refreshMetrics()">Refresh Metrics</button>
+    <section class="card" style="margin-top:20px">
+        <h3>Alert Details</h3>
+        <div id="alert-list" class="muted">Loading alerts...</div>
+    </section>
+
+    <button id="refresh-button" onclick="refreshMetrics()">
+        Refresh Metrics
+    </button>
+
     <footer>
-        Local monitoring demo · Metrics refresh every 5 seconds ·
-        Not yet connected to AWS CloudWatch
+        Local system monitoring demo · Auto-refresh every 5 seconds
+        · AWS CloudWatch integration is not enabled yet
     </footer>
 </main>
 
 <script>
 async function refreshMetrics() {
+    const button = document.getElementById("refresh-button");
+    button.disabled = true;
+
     try {
-        const response = await fetch("/api/metrics");
-        if (!response.ok) throw new Error("Unable to retrieve metrics");
+        const response = await fetch("/api/metrics", { cache: "no-store" });
+        if (!response.ok) throw new Error("Could not retrieve metrics");
 
         const data = await response.json();
         const m = data.metrics;
         const alerts = data.alerts;
 
-        document.getElementById("cpu").textContent = m.cpu_percent + "%";
-        document.getElementById("ram").textContent = m.memory_percent + "%";
-        document.getElementById("disk").textContent = m.disk_percent + "%";
+        const values = [
+            ["cpu", m.cpu_percent],
+            ["ram", m.memory_percent],
+            ["disk", m.disk_percent]
+        ];
 
-        document.getElementById("cpu-bar").style.width = m.cpu_percent + "%";
-        document.getElementById("ram-bar").style.width = m.memory_percent + "%";
-        document.getElementById("disk-bar").style.width = m.disk_percent + "%";
+        values.forEach(([name, value]) => {
+            document.getElementById(name).textContent = value + "%";
+            document.getElementById(name + "-bar").style.width =
+                Math.max(0, Math.min(100, value)) + "%";
+        });
 
-        document.getElementById("cpu-threshold").textContent = data.thresholds.cpu;
-        document.getElementById("ram-threshold").textContent = data.thresholds.ram;
+        document.getElementById("cpu-threshold").textContent =
+            data.thresholds.cpu;
+        document.getElementById("ram-threshold").textContent =
+            data.thresholds.ram;
+        document.getElementById("disk-threshold").textContent =
+            data.thresholds.disk;
         document.getElementById("alerts").textContent = alerts.length;
         document.getElementById("timestamp").textContent =
             "Last updated: " + new Date(m.timestamp).toLocaleString();
@@ -158,11 +173,31 @@ async function refreshMetrics() {
 
         document.getElementById("alert-details").textContent =
             alerts.length
-                ? alerts.map(a => a.metric + ": " + a.value + "%").join(" | ")
-                : "No threshold violations detected";
+                ? "One or more resource thresholds have been exceeded."
+                : "No threshold violations detected.";
+
+        const alertList = document.getElementById("alert-list");
+        alertList.replaceChildren();
+
+        if (alerts.length) {
+            alerts.forEach(alert => {
+                const item = document.createElement("div");
+                item.textContent =
+                    alert.metric + ": " + alert.value + "% (threshold: " +
+                    alert.threshold + "%, severity: " +
+                    (alert.severity || "WARNING") + ")";
+                alertList.appendChild(item);
+            });
+        } else {
+            alertList.textContent = "No active alerts. All monitored resources are within thresholds.";
+        }
     } catch (error) {
-        document.getElementById("status").textContent = "Monitoring unavailable";
+        document.getElementById("status").textContent =
+            "Monitoring unavailable";
+        document.getElementById("status").className = "alert";
         document.getElementById("alert-details").textContent = error.message;
+    } finally {
+        button.disabled = false;
     }
 }
 
@@ -190,6 +225,7 @@ def metrics_api():
         "thresholds": {
             "cpu": settings.cpu_threshold,
             "ram": settings.ram_threshold,
+            "disk": settings.disk_threshold,
         },
         "status": "ALERT" if alerts else "HEALTHY",
     })
