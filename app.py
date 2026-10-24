@@ -1,8 +1,8 @@
-
 from flask import Flask, jsonify, render_template_string
-from config import settings, validate_settings
-from monitor import collect_metrics, evaluate_metrics
 
+from config import settings, validate_settings
+from history import save_metrics, get_metrics_history
+from monitor import collect_metrics, evaluate_metrics
 app = Flask(__name__)
 
 DASHBOARD_HTML = """
@@ -12,6 +12,7 @@ DASHBOARD_HTML = """
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CloudWatch Sentinel Pro</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <style>
 * { box-sizing: border-box; }
 body {
@@ -121,7 +122,13 @@ footer { margin-top: 25px; color: #9ca3af; font-size: 12px; }
         <h3>Alert Details</h3>
         <div id="alert-list" class="muted">Loading alerts...</div>
     </section>
-
+    <section class="card" style="margin-top:20px">
+        <h3>Resource Usage History</h3>
+        <p class="muted">Recent CPU, memory and disk utilization</p>
+        <div id="history-chart" style="width:100%; min-height:350px;">
+            Loading history chart...
+        </div>
+    </section>
     <button id="refresh-button" onclick="refreshMetrics()">
         Refresh Metrics
     </button>
@@ -203,6 +210,80 @@ async function refreshMetrics() {
 
 refreshMetrics();
 setInterval(refreshMetrics, 5000);
+async function refreshHistoryChart() {
+    const chart = document.getElementById("history-chart");
+
+    try {
+        const response = await fetch("/api/history", {
+            cache: "no-store"
+        });
+
+        if (!response.ok) {
+            throw new Error("Could not load history");
+        }
+
+        const result = await response.json();
+        const history = result.history || [];
+
+        if (history.length === 0) {
+            chart.textContent = "Waiting for metrics history...";
+            return;
+        }
+
+        const timestamps = history.map(item =>
+            new Date(item.timestamp)
+        );
+
+        const traces = [
+            {
+                x: timestamps,
+                y: history.map(item => item.cpu_percent),
+                name: "CPU",
+                type: "scatter",
+                mode: "lines+markers"
+            },
+            {
+                x: timestamps,
+                y: history.map(item => item.memory_percent),
+                name: "Memory",
+                type: "scatter",
+                mode: "lines+markers"
+            },
+            {
+                x: timestamps,
+                y: history.map(item => item.disk_percent),
+                name: "Disk",
+                type: "scatter",
+                mode: "lines+markers"
+            }
+        ];
+
+        Plotly.react(chart, traces, {
+            title: "Resource Utilization Over Time",
+            autosize: true,
+            paper_bgcolor: "#111827",
+            plot_bgcolor: "#111827",
+            font: { color: "#e5e7eb" },
+            xaxis: { title: "Time" },
+            yaxis: {
+                title: "Usage (%)",
+                range: [0, 100]
+            },
+            legend: { orientation: "h" },
+            margin: { t: 50, r: 20, b: 60, l: 55 }
+        }, {
+            responsive: true
+        });
+
+    } catch (error) {
+        chart.textContent =
+            "Chart could not load. Check your internet connection and try again.";
+        console.error(error);
+    }
+}
+
+refreshHistoryChart();
+setInterval(refreshHistoryChart, 10000);
 </script>
 </body>
 </html>
@@ -219,6 +300,8 @@ def metrics_api():
     metrics = collect_metrics()
     alerts = evaluate_metrics(metrics)
 
+    save_metrics(metrics)
+
     return jsonify({
         "metrics": metrics,
         "alerts": alerts,
@@ -228,6 +311,13 @@ def metrics_api():
             "disk": settings.disk_threshold,
         },
         "status": "ALERT" if alerts else "HEALTHY",
+    })
+
+
+@app.get("/api/history")
+def history_api():
+    return jsonify({
+        "history": get_metrics_history(limit=50)
     })
 
 
